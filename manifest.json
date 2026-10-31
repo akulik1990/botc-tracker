@@ -1,15 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "BOTC vote tracker",
-  "version": "0.1.0",
-  "description": "Keeps every nomination and vote of a botc.app game, with highlight and compare.",
+  "name": "BOTC tracker",
+  "version": "0.5.0",
+  "description": "Votes, claims, notes and worlds for botc.app, in panels you can dock or pop out.",
   "content_scripts": [
     {
       "matches": [
         "https://botc.app/*"
       ],
       "js": [
-        "vote-tracker.js"
+        "vendor/vue.global.prod.js",
+        "src/rules.js",
+        "src/style.js",
+        "src/store.js",
+        "src/panels.js",
+        "src/main.js"
       ],
       "world": "MAIN",
       "run_at": "document_idle"
