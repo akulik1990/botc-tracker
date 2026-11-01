@@ -83,6 +83,7 @@
       case "shugenja": return `nearest evil is ${e.dir}`;
       case "bountyhunter": return `${e.a} is evil`;
       case "villageidiot": return `${e.a} is ${e.al}`;
+      case "gambler": return `guessed ${e.a} is the ${c}, ${e.yes ? "lived" : e.yes === false ? "died" : "?"}`;
     }
     return e.text || "";
   };
@@ -241,7 +242,7 @@
     computed: {
       form() { return B.FORMS[this.e.char] || { f: ["text"] }; },
       list() {
-        const keep = this.mine ? (e) => e.who === this.g.me : (e) => !this.filter || [e.who, e.a, e.b, e.x].includes(this.filter);
+        const keep = this.mine ? (e) => e.who === this.g.me : (e) => e.who !== this.g.me && (!this.filter || [e.who, e.a, e.b, e.x].includes(this.filter));
         return this.g.info.filter(keep).sort((x, y) => x.night - y.night);
       },
       night() { return B.night(this.g.phase); },
@@ -275,8 +276,7 @@
     },
     template: `<div>
       <template v-if="mine">
-        <p v-if="!g.me" class="small">Take a seat in a game to log your own info here.</p>
-        <div v-else class="me">
+        <div class="me">
           <b :class="'t-' + team(myId)">{{ name(myId) || 'Your character' }}</b>
           <div class="ability">{{ g.chars[myId]?.ability }}</div>
         </div>
@@ -312,10 +312,16 @@
     </div>`,
   };
 
+  const InfoPanel = {
+    mixins: [base],
+    components: { Info },
+    template: `<div><template v-if="g.me"><Info mine /><h3>Everyone else</h3></template><Info /></div>`,
+  };
+
   const WORD = { fit: "fits", break: "breaks", odd: "explained", soft: "red herring?" };
   const Worlds = {
     mixins: [base],
-    components: { PlayerSelect, PlayerChips },
+    components: { PlayerSelect, PlayerChips, CharSelect },
     data: () => ({ open: {} }),
     computed: {
       results() { return Object.fromEntries(this.g.worlds.map((w) => [w.id, B.checkWorld(w, this.g)])); },
@@ -327,7 +333,7 @@
       add(from) {
         const w = from
           ? { ...JSON.parse(JSON.stringify(from)), id: B.uid(this.g), name: from.name + " copy" }
-          : { id: B.uid(this.g), name: "World " + (this.g.worlds.length + 1), demon: "", minions: [], odd: [], note: "" };
+          : { id: B.uid(this.g), name: "World " + (this.g.worlds.length + 1), demon: "", kind: "", minions: [], odd: [], note: "" };
         this.g.worlds.push(w);
       },
       drop(w) { if (ask(`Delete ${w.name}?`)) this.g.worlds.splice(this.g.worlds.indexOf(w), 1); },
@@ -340,7 +346,7 @@
           <button @click="add(w)" title="Copy this world">Copy</button>
           <button class="x" @click="drop(w)">&times;</button>
         </div>
-        <div class="row"><span class="lab">Demon</span><PlayerSelect v-model="w.demon" /></div>
+        <div class="row"><span class="lab">Demon</span><PlayerSelect v-model="w.demon" /><CharSelect v-model="w.kind" only="demon" blank="as" title="Vortox and No Dashii change what counts as wrong info" /></div>
         <div class="row"><span class="lab">Minions</span><PlayerChips v-model="w.minions" cls="evil" /></div>
         <div class="row"><span class="lab" title="Drunk, poisoned, or registering wrong">Unreliable</span><PlayerChips v-model="w.odd" /></div>
         <div class="row tally" @click="open[w.id] = !open[w.id]">
@@ -392,8 +398,7 @@
     { id: "votes", label: "Votes", comp: Votes },
     { id: "players", label: "Players", comp: Players },
     { id: "claims", label: "Claims", comp: Claims },
-    { id: "mine", label: "My info", comp: { components: { Info }, template: `<Info mine />` } },
-    { id: "info", label: "Info", comp: Info },
+    { id: "info", label: "Info", comp: InfoPanel },
     { id: "worlds", label: "Worlds", comp: Worlds },
     { id: "games", label: "Games", comp: Games },
   ];

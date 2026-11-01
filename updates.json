@@ -1,0 +1,13 @@
+{
+  "addons": {
+    "botc-vote-tracker@akulik1990": {
+      "updates": [
+        {
+          "version": "0.6.3",
+          "update_link": "https://github.com/akulik1990/botc-tracker/releases/download/v0.6.3/botc-tracker.xpi",
+          "update_hash": "sha256:2333da6a618db5b3cfef210f0968f656a7a891054844d791261d64ac037de463"
+        }
+      ]
+    }
+  }
+}

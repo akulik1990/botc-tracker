@@ -14,7 +14,7 @@
 
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY)); } catch {}
-  const db = B.db = reactive(Object.assign({ games: [], panels: {}, docked: "votes", open: false }, saved));
+  const db = B.db = reactive(Object.assign({ games: [], panels: {} }, saved));
   if (!db.games.length) db.games.push(blank());
   for (const g of db.games) {
     for (const k of MAPS) g[k] = dict(g[k]);

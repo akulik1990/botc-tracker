@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BOTC tracker",
-  "version": "0.5.0",
+  "version": "0.6.3",
   "description": "Votes, claims, notes and worlds for botc.app, in panels you can dock or pop out.",
   "content_scripts": [
     {
@@ -24,6 +24,7 @@
     "gecko": {
       "id": "botc-vote-tracker@akulik1990",
       "strict_min_version": "140.0",
+      "update_url": "https://raw.githubusercontent.com/akulik1990/botc-tracker/master/updates.json",
       "data_collection_permissions": {
         "required": [
           "none"

@@ -99,6 +99,7 @@
     shugenja: { f: ["dir"] },
     bountyhunter: { f: ["a"] },
     villageidiot: { f: ["a", "al"] },
+    gambler: { f: ["a", "c", "yes"], yes: ["lived", "died"] },
   };
 
   const side = (team) => team === "demon" ? "demon" : team === "minion" ? "minion" : team ? "good" : null;
@@ -184,6 +185,11 @@
         return ok(w.demon === e.a || w.demon === e.b);
       case "snakecharmer":
         return e.a ? ok(w.demon !== e.a) : null;
+      case "gambler": {
+        // dying proves little (could be the demon), living means the guess was right
+        if (!e.a || !e.c || !team(e.c) || e.yes !== true) return null;
+        return ok(truth(w, e.a) === side(team(e.c)));
+      }
       case "knight":
         if (!e.a || !e.b) return null;
         return ok(w.demon !== e.a && w.demon !== e.b);
@@ -212,12 +218,40 @@
     return null;
   }
 
+  // info whose fit means "true", not just "possible", so a Vortox can flip it
+  const EXACT = new Set(["chef", "empath", "clockmaker", "oracle", "fortuneteller", "steward", "bountyhunter",
+    "seamstress", "sage", "knight", "noble", "villageidiot", "shugenja", "flowergirl", "towncrier"]);
+  const NOT_INFO = new Set(["snakecharmer", "gambler"]);
+
+  function vortox(e, s) {
+    if (s === "break") return "fit";
+    if (!EXACT.has(e.char)) return "fit";
+    if (e.char === "fortuneteller" && !e.yes && s === "fit") return "soft";
+    return s === "fit" ? "break" : "fit";
+  }
+
+  // the nearest townsfolk each way, dead or alive, skipping outsiders, travellers and evil
+  function dashiiPoisons(w, g) {
+    const ps = g.players, len = ps.length, i = ps.indexOf(w.demon);
+    if (i < 0) return [];
+    const evil = ev(w);
+    // ponytail: unclaimed counts as townsfolk, a good player lying about being an outsider fools it
+    const folk = (n) => !evil.has(n) && !g.travellers.includes(n) && !["outsider", "traveller"].includes(g.chars[g.log?.[n]?.at(-1)?.id]?.team);
+    const out = [];
+    for (const step of [1, -1])
+      for (let k = 1; k < len; k++) { const n = ps[(i + step * k + len * k) % len]; if (folk(n)) { out.push(n); break; } }
+    return out;
+  }
+
   B.checkWorld = (w, g) => {
-    const rows = [];
+    const rows = [], evil = ev(w);
+    const odd = new Set([...w.odd, ...(w.kind === "nodashii" ? dashiiPoisons(w, g) : [])]);
     for (const e of g.info) {
       let s = checkOne(e, w, g);
       if (!s) continue;
-      if (s === "break" && [e.who, e.a, e.b, e.x].some((n) => n && w.odd.includes(n))) s = "odd";
+      if (evil.has(e.who)) s = s === "break" ? "odd" : s;
+      else if (w.kind === "vortox" && g.chars[e.char]?.team === "townsfolk" && !NOT_INFO.has(e.char)) s = vortox(e, s);
+      if (s === "break" && [e.who, e.a, e.b, e.x].some((n) => n && odd.has(n))) s = "odd";
       rows.push({ id: e.id, s });
     }
     const notes = [];

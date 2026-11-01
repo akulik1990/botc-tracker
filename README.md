@@ -1,36 +1,48 @@
 # BOTC tracker
 
-Firefox add-on for [botc.app](https://botc.app). It adds the player-side notes the app doesn't have, in panels that sit on the town square.
+A Firefox add-on for [botc.app](https://botc.app). It puts the notes into panels on the town square and keeps track of votes.
 
-- **Votes**: every nomination and vote, saved when the clock hand finishes. Grouped by day, voters in hand order, ghost votes dashed, who ended up on the block. Tick a few and Compare for a player by vote grid. The app only keeps a vote history for the storyteller and grimoire access, so this is the main gap it fills.
-- **Players**: a claim, a good / evil read and a note per seat, plus notes for the whole game. Character tokens you put on seats in your grimoire count as claims too (shown faded). Every claim change is kept in order with the phase it happened in, and the latest one is what Claims and Worlds use.
-- **My info**: your character and ability, and what you learn each night.
-- **Claims**: the current script's characters with who claims each one, double claims, characters nobody has claimed, players with no claim, and the setup counts (Baron and friends included).
-- **Info**: what everyone says they learned and on which night, yours included.
-- **Worlds**: pick a demon and minions and see which info fits or breaks. Checked characters:
-  - Trouble Brewing: Washerwoman, Librarian, Investigator, Chef, Empath, Fortune Teller, Undertaker, Ravenkeeper
-  - Sects & Violets: Clockmaker, Dreamer, Oracle, Seamstress, Sage, Snake Charmer, Flowergirl and Town Crier (these two read the captured votes)
-  - others: Grandmother, Noble, Steward, Knight, Shugenja, Bounty Hunter, Village Idiot
+## Panels
 
-  Anything else goes in as free text.
-- **Games**: earlier games, kept for a while. A new game starts on its own when the storyteller starts one.
+Votes is the reason this exists. The app only keeps vote history if you're the storyteller or have grimoire access, so the add-on saves every nomination once the clock hand finishes going round. Votes are grouped by day with voters in hand order, ghost votes dashed, and whoever ended up on the block marked. Tick a few and hit Compare to get a player by vote grid.
 
-Tap any name to highlight that player everywhere. Each panel opens from the tab strip and either docks to the left or right edge (one per side, drag the inner edge to resize) or pops out into its own window you can drag and resize. The percentage button in a window's title bar steps its background through 100, 80, 60 and 40% so you can see the town square through it. The strip itself can be dragged by its grip.
+Players has a claim, a good/evil read and a note for each seat, plus a box for notes on the whole game. Tokens you drop on seats in your grimoire count as claims (they show faded). Claim changes are kept in order with the phase they happened in, so if someone goes from Investigator to Undertaker you see both, and Claims and Worlds use the latest.
 
-Seats, deaths, your own character and the script all come from the game state the town square draws from, so the add-on sees nothing a player can't see on screen. Data stays in the browser's local storage for botc.app.
+Claims lists the script's characters and who claims each, with double claims, unclaimed characters and players who haven't claimed anything. The setup counts at the top know about the Baron and the other characters that change them.
+
+Info starts with your own character, its ability and what you've learned each night. Under that is what everyone else says they learned, and when.
+
+Worlds lets you pick a demon and minions and shows which info fits that world and which breaks it. It checks these characters:
+
+- Trouble Brewing: Washerwoman, Librarian, Investigator, Chef, Empath, Fortune Teller, Undertaker, Ravenkeeper
+- Sects & Violets: Clockmaker, Dreamer, Oracle, Seamstress, Sage, Snake Charmer, Flowergirl and Town Crier (those two read the saved votes)
+- Bad Moon Rising: Grandmother, and a Gambler who guessed and lived
+- the rest: Noble, Steward, Knight, Shugenja, Bounty Hunter, Village Idiot
+
+Anything else goes in as free text and isn't checked. Each world can say which demon it is. With a Vortox, Townsfolk info has to be false to fit. With a No Dashii, its nearest Townsfolk on each side are treated as poisoned. Wrong info from a player the world makes evil counts as a lie, not a break, and you can mark anyone else drunk or poisoned by hand.
+
+Games keeps your last few games. A new one starts by itself when the storyteller starts a game.
+
+Click a name anywhere to highlight that player in every panel.
+
+## Windows
+
+The tabs sit on the edge of the screen. Click one and its panel slides out with the tabs attached to its side; click it again to put it away. Drag the panel's inner edge to make it wider. The arrow in the title bar moves the whole thing to the other side of the screen, and the grip at the top of the tabs slides them up or down.
+
+Pop out turns a panel into a window you can drag and resize, and you can have as many of those open as you like. The percentage button fades the background (100, 80, 60, 40%) so the town square shows through.
+
+Seats, deaths, your character and the script come from the same game state the town square is drawn from, so the add-on never sees anything you can't see on screen. Everything is saved in the browser's local storage for botc.app.
 
 ## Install
 
-Needs Firefox 140 or later, or Zen.
+You need Firefox 140 or newer.
 
-For a quick test: `about:debugging#/runtime/this-firefox`, Load Temporary Add-on, pick `manifest.json`. It goes away when the browser restarts.
+1. Grab `botc-tracker.xpi` from the [latest release](https://github.com/akulik1990/botc-tracker/releases/latest), or build it with `git archive --format=zip -o botc-tracker.xpi HEAD manifest.json vendor src`
+2. In `about:config`, set `xpinstall.signatures.required` to `false`
+3. In `about:addons`, open the gear menu, choose Install Add-on From File and pick the `.xpi`
 
-To keep it (Zen, Developer Edition, Nightly, ESR; regular Firefox needs Mozilla signing):
+## Releasing
 
-1. Build: `git archive --format=zip -o botc-tracker.xpi HEAD manifest.json vendor src`
-2. In `about:config` set `xpinstall.signatures.required` to `false`
-3. `about:addons`, gear menu, Install Add-on From File, pick the `.xpi`
-
-Updating is the same three steps; it replaces the old version and keeps your notes.
+Run `./release.sh 0.6.4 "what changed"` with the new version. Anything you haven't committed goes into the same commit. The script bumps the manifest, builds the `.xpi`, makes the GitHub release and then updates `updates.json`, which is the file installed copies check.
 
 Vue 3.5.13 is bundled in `vendor/` (MIT).

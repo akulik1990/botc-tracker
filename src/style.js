@@ -13,14 +13,18 @@ input.n { width: 56px; }
 .bare:hover, .bare:focus { border-color: #2e3340; }
 
 .strip { position: fixed; display: flex; flex-direction: column; gap: 3px; background: rgba(20, 22, 26, .9);
-  border: 1px solid #2e3340; border-radius: 8px 0 0 8px; padding: 4px 3px; color: #e6e8ec; }
+  border: 1px solid #2e3340; padding: 4px 3px; color: #e6e8ec; transition: left .2s ease, right .2s ease; }
+.strip.right { border-radius: 8px 0 0 8px; border-right: 0; }
+.strip.left { border-radius: 0 8px 8px 0; border-left: 0; }
+.strip.sizing { transition: none; }
 .strip button { writing-mode: vertical-rl; padding: 8px 3px; font-size: 12px; }
 .strip button.on { border-color: #d8b04a; color: #d8b04a; }
-.grip { cursor: grab; color: #8b93a3; text-align: center; font-size: 10px; letter-spacing: -2px; user-select: none; touch-action: none; }
+.grip { cursor: ns-resize; color: #8b93a3; text-align: center; font-size: 10px; letter-spacing: -2px; user-select: none; touch-action: none; }
 
 .win { position: fixed; display: flex; flex-direction: column; background: rgba(20, 22, 26, var(--a)); color: #e6e8ec;
   border: 1px solid #2e3340; box-shadow: 0 6px 24px rgba(0, 0, 0, .5); }
-.win.dock { top: 0; height: 100vh; }
+.win.dock { top: 0; height: 100vh; transition: transform .2s ease; }
+.win.shut { box-shadow: none; }
 .win.see { text-shadow: 0 1px 2px #000; }
 .pct { font-size: 11px; padding: 3px 5px; color: #8b93a3; }
 .edge { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; z-index: 1; touch-action: none; }
