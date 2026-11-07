@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BOTC tracker",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Votes, claims, notes and worlds for botc.app, in panels you can dock or pop out.",
   "content_scripts": [
     {

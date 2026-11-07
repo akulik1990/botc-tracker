@@ -81,7 +81,7 @@ tr.hl { outline: none; }
 
 .prow { border-bottom: 1px solid #2e3340; padding: 5px 0; }
 .prow.hl { outline: none; background: #2a2618; }
-.prow.dead .nm { text-decoration: line-through; opacity: .7; }
+.prow.dead .nm { opacity: .7; }
 .seat { color: #8b93a3; width: 18px; text-align: right; font-size: 11px; }
 .seat.gone { color: #e0483f; font-weight: 700; }
 .note { width: 100%; margin-top: 4px; background: transparent; }
@@ -102,11 +102,12 @@ tr.hl { outline: none; }
 .t-traveller { color: #b07ce8; }
 .claim .nm { color: #e6e8ec; }
 .nm.tok { font-style: italic; opacity: .65; }
-select.tok { font-style: italic; color: #8b93a3; }
-.nm.was { text-decoration: line-through; opacity: .5; font-weight: 400; }
+select.tok { font-style: italic; }
+select option, select optgroup { color: #e6e8ec; font-style: normal; }
+.nm.was { opacity: .5; font-weight: 400; }
 .hist { display: flex; flex-wrap: wrap; gap: 2px 6px; font-size: 12px; margin-top: 3px; padding-left: 24px; }
 .hist span + span::before { content: "\\2192  "; color: #8b93a3; }
-.hist .was { color: #8b93a3; text-decoration: line-through; }
+.hist .was { opacity: .55; }
 .hist small { color: #8b93a3; font-size: 11px; }
 .hist .x { border: 0; background: none; padding: 0 2px; color: #8b93a3; }
 .me { padding-bottom: 6px; }

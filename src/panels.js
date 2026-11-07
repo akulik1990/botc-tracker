@@ -56,7 +56,7 @@
     </span>`,
   };
 
-  const charName = (g, id) => g.chars[id]?.name || "";
+  const charName = (g, id) => B.char(g, id)?.name || "";
   const infoText = (g, e) => {
     const c = e.c === "none" ? "no one" : charName(g, e.c) || "?";
     switch (e.char) {
@@ -156,7 +156,7 @@
   const InfoForm = {
     mixins: [base],
     components: { CharSelect, PlayerSelect },
-    props: { who: String },
+    props: { who: String, seed: { type: Object, default: () => ({}) } },
     emits: ["added"],
     data() { return { e: this.start() }; },
     computed: {
@@ -167,7 +167,7 @@
       has(k) { return this.form.f.includes(k); },
       start() {
         const g = B.game();
-        return { ...fresh(), who: this.who, char: this.who === g.me ? B.myChar(g) : B.claimOf(g, this.who).id };
+        return { ...fresh(), who: this.who, char: this.who === g.me ? B.myChar(g) : B.claimOf(g, this.who).id, ...this.seed };
       },
       add() {
         if (!this.e.char) return;
@@ -202,7 +202,7 @@
   const Players = {
     mixins: [base],
     components: { Nm, CharSelect, InfoForm },
-    data: () => ({ adding: "", more: {} }),
+    data: () => ({ adding: "", more: {}, seed: {} }),
     computed: {
       myId() { return B.myChar(this.g); },
       blk() { return B.blocks(this.g.votes); },
@@ -218,7 +218,8 @@
       infos(n) { return this.g.info.filter((e) => e.who === n).sort((x, y) => x.night - y.night); },
       shown(n) { const l = this.infos(n); return this.more[n] ? l : l.slice(-1); },
       text(e) { return infoText(this.g, e); },
-      team(id) { return this.g.chars[id]?.team || ""; },
+      team(id) { return B.char(this.g, id)?.team || ""; },
+      about(id) { return B.char(this.g, id)?.ability || ""; },
       dropInfo(e) { if (ask("Delete this info?")) this.g.info.splice(this.g.info.indexOf(e), 1); },
       cycle(n) { this.g.reads[n] = READS[(READS.indexOf(this.g.reads[n] || "") + 1) % READS.length]; },
       cur(n) { return B.claimOf(this.g, n); },
@@ -226,6 +227,7 @@
       hist(n) { return this.g.log[n] || []; },
       showHist(n) { const h = this.hist(n); return h.length > 1 || (h.length && h[0].src !== "set"); },
       drop(n, i) { this.g.log[n].splice(i, 1); },
+      again(n, e) { this.seed = { char: e.char, night: e.night + 1 }; this.adding = n; },
       cname(id) { return charName(this.g, id) || "no claim"; },
       src: (s) => ({ token: " token", me: " yours", reveal: " revealed", public: "" })[s] || "",
       short: B.short,
@@ -233,7 +235,7 @@
     template: `<div>
       <div v-if="g.me" class="me">
         <CharSelect v-model="g.mine" :blank="auto" :class="'mine t-' + team(myId)" title="Pick your character to fix it, or leave it to follow the game" />
-        <div class="ability">{{ g.chars[myId]?.ability }}</div>
+        <div class="ability">{{ about(myId) }}</div>
       </div>
       <textarea v-model="g.eval" rows="3" placeholder="Notes for this game"></textarea>
       <p v-if="!g.players.length" class="small">Seats show up here once you're in a game.</p>
@@ -246,21 +248,22 @@
           <span v-if="n in g.deaths" class="tag" :class="fate(n).startsWith('died') ? 'blk' : 'exec'">&dagger; {{ fate(n) }}</span>
           <span class="sp"></span>
           <button class="read" :class="g.reads[n]" @click="cycle(n)" :title="'Read: ' + (g.reads[n] || 'none')">{{ (g.reads[n] || '?')[0].toUpperCase() }}</button>
-          <CharSelect :modelValue="cur(n).id" @update:modelValue="pick(n, $event)" blank="claim" :class="{ tok: cur(n).src === 'token' }" />
-          <button class="x" @click="adding = adding === n ? '' : n" title="Add what they learned">+</button>
+          <CharSelect :modelValue="cur(n).id" @update:modelValue="pick(n, $event)" blank="claim" :class="['t-' + team(cur(n).id), { tok: cur(n).src === 'token' }]" :title="about(cur(n).id)" />
+          <button class="x" @click="seed = {}; adding = adding === n ? '' : n" title="Add what they learned">+</button>
         </div>
         <div v-if="showHist(n)" class="hist">
-          <span v-for="(c, k) in hist(n)" :key="k" :class="{ was: k < hist(n).length - 1 }">{{ cname(c.id) }}
+          <span v-for="(c, k) in hist(n)" :key="k" :class="['t-' + team(c.id), { was: k < hist(n).length - 1 }]" :title="about(c.id)">{{ cname(c.id) }}
             <small>{{ short(c.phase) }}{{ src(c.src) }}</small><button class="x" @click="drop(n, k)" title="Remove">&times;</button></span>
         </div>
         <div v-for="e in shown(n)" :key="e.id" class="info">
           <span class="small">N{{ e.night }}</span>
-          <span :class="'t-' + team(e.char)">{{ cname(e.char) }}</span>
+          <span :class="'t-' + team(e.char)" :title="about(e.char)">{{ cname(e.char) }}</span>
           <span class="grow">{{ text(e) }}</span>
+          <button class="x" @click="again(n, e)" title="Another one, next night">+</button>
           <button class="x" @click="dropInfo(e)" title="Delete">&times;</button>
         </div>
         <button v-if="infos(n).length > 1" class="x small" @click="more[n] = !more[n]">{{ more[n] ? 'latest only' : 'all ' + infos(n).length }}</button>
-        <InfoForm v-if="adding === n" :who="n" @added="adding = ''" />
+        <InfoForm v-if="adding === n" :key="seed.night" :who="n" :seed="seed" @added="adding = ''" />
         <input v-model="g.notes[n]" class="note" placeholder="note">
       </div>
     </div>`,

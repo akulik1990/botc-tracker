@@ -59,6 +59,12 @@
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const set = (g, k, v) => { if (!same(g[k], v)) g[k] = v; };
 
+  // the character sheet shows the translated text when there is one, so use the same
+  const t = (k, d) => B.gp?.$te?.(k) ? B.gp.$t(k) : d;
+  const mk = (r) => ({ id: r.id, name: t(`roles.${r.id}.name`, r.name), team: r.team, ability: t(`roles.${r.id}.ability`, r.ability || ""), setup: !!r.setup, first: r.firstNight || 0, other: r.otherNight || 0 });
+  // tokens can be off the script, botc.app still knows them
+  B.char = (g, id) => { const r = g.chars[id] || B.gp?.$store.state.rolesAvailable?.get(id); return r ? (g.chars[id] || mk(r)) : null; };
+
   function sync(st) {
     const ps = st.players.players;
     const h0 = st.game.history?.[0];
@@ -100,10 +106,7 @@
 
     if (st.roles?.size) {
       const chars = dict();
-      // the character sheet shows the translated text when there is one, so use the same
-      const t = (k, d) => B.gp?.$te?.(k) ? B.gp.$t(k) : d;
-      for (const r of st.roles.values())
-        chars[r.id] = { id: r.id, name: t(`roles.${r.id}.name`, r.name), team: r.team, ability: t(`roles.${r.id}.ability`, r.ability || ""), setup: !!r.setup, first: r.firstNight || 0, other: r.otherNight || 0 };
+      for (const r of st.roles.values()) chars[r.id] = mk(r);
       set(g, "chars", chars);
     }
 
