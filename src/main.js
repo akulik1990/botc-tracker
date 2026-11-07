@@ -13,11 +13,44 @@
     db.dock = { side, id: id || "votes", open: !!id, w: db.dockW?.[side] || 380, y: -1 };
     delete db.docked; delete db.dockW; delete db.strip; delete db.open;
   }
-  if (db.dock.id === "mine") db.dock.id = "info";
+  if (["mine", "info"].includes(db.dock.id)) db.dock.id = "players";
   const dock = db.dock;
   // innerWidth counts a classic scrollbar, and computeds can't see it change
   const vw = Vue.ref(document.documentElement.clientWidth);
   addEventListener("resize", () => { vw.value = document.documentElement.clientWidth; });
+
+  // botc.app's own sheets (characters, night order, voice, text) hug the edges: the docked panel keeps
+  // clear of all of them, the tabs only of what sits at their height
+  const inset = Vue.reactive({ left: 0, right: 0 }), tabs = Vue.reactive({ left: 0, right: 0 });
+  // the docked panel also stops short of botc.app's controls (top right) and phase box (bottom right)
+  const band = Vue.reactive({ top: 0, bottom: 0 });
+  function measure(strip) {
+    const w = vw.value, all = { left: 0, right: 0 }, near = { left: 0, right: 0 };
+    for (const a of document.querySelectorAll("aside.tab")) {
+      // the label hangs outside the sheet, and a closed sheet is off screen apart from that label
+      const bs = [a.getBoundingClientRect(), a.querySelector(".label")?.getBoundingClientRect()]
+        .filter((b) => b?.width >= 1 && b.left < w && b.right > 0);
+      if (!bs.length) continue;
+      const side = Math.max(...bs.map((b) => b.right)) >= w - 2 ? "right" : Math.min(...bs.map((b) => b.left)) <= 2 ? "left" : "";
+      if (!side) continue;
+      // the Characters sheet says what our Characters tab says, so the panel may cover it
+      const cover = a.classList.contains("character") || !!a.querySelector(".team");
+      for (const b of bs) {
+        const x = Math.round(side === "right" ? w - b.left : b.right);
+        if (!cover) all[side] = Math.max(all[side], x);
+        if (b.top < strip.bottom && b.bottom > strip.top) near[side] = Math.max(near[side], x);
+      }
+    }
+    for (const k of ["left", "right"]) {
+      if (inset[k] !== all[k]) inset[k] = all[k];
+      if (tabs[k] !== near[k]) tabs[k] = near[k];
+    }
+    const c = document.querySelector("#controls")?.getBoundingClientRect();
+    const v = document.querySelector("#version")?.getBoundingClientRect();
+    const top = c?.height ? Math.round(c.bottom) + 4 : 0, bottom = v?.height ? Math.round(innerHeight - v.top) + 4 : 0;
+    if (band.top !== top) band.top = top;
+    if (band.bottom !== bottom) band.bottom = bottom;
+  }
 
   function drag(e, get, put) {
     if (e.button !== 0 || e.target.closest("button,select,input,textarea")) return;
@@ -34,9 +67,9 @@
     computed: {
       list: () => B.PANELS, ui: () => B.ui, dock: () => dock,
       old() { return !!B.ui.view && B.game() !== B.latest(); },
-      dockW: () => Math.min(dock.w, vw.value - 60),
+      dockW: () => Math.min(dock.w, vw.value - 60 - inset[dock.side]),
       stripStyle() {
-        const out = dock.open && !st(dock.id).float ? this.dockW : 0;
+        const out = dock.open && !st(dock.id).float ? this.dockW + inset[dock.side] : tabs[dock.side];
         return { [dock.side]: out + "px", top: dock.y < 0 ? "35%" : dock.y + "px" };
       },
     },
@@ -76,8 +109,9 @@
       win(id) {
         const s = st(id), a = { "--a": this.alpha(id) };
         if (s.float) return { ...a, left: s.x + "px", top: s.y + "px", width: s.w + "px", height: s.h + "px", zIndex: s.z || 1 };
-        const out = dock.open ? "none" : `translateX(${dock.side === "left" ? "-" : ""}100%)`;
-        return { ...a, [dock.side]: "0", width: this.dockW + "px", transform: out };
+        const off = inset[dock.side];
+        const out = dock.open ? "none" : dock.side === "left" ? `translateX(calc(-100% - ${off}px))` : `translateX(calc(100% + ${off}px))`;
+        return { ...a, [dock.side]: off + "px", width: this.dockW + "px", transform: out, top: band.top + "px", height: `calc(100vh - ${band.top + band.bottom}px)` };
       },
       move(e, id) {
         const s = st(id);
@@ -91,7 +125,7 @@
       },
       widen(e) {
         const move = (ev) => {
-          const w = dock.side === "left" ? ev.clientX : vw.value - ev.clientX;
+          const w = dock.side === "left" ? ev.clientX - inset.left : vw.value - inset.right - ev.clientX;
           dock.w = Math.round(clamp(w, 260, vw.value * 0.8));
         };
         const up = () => { this.sizing = false; removeEventListener("pointermove", move); removeEventListener("pointerup", up); };
@@ -139,5 +173,6 @@
   const mount = document.createElement("div");
   root.append(style, mount);
   Vue.createApp(App).mount(mount);
+  setInterval(() => measure(root.querySelector(".strip").getBoundingClientRect()), 250);
   B.hook();
 })();

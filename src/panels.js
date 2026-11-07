@@ -151,11 +151,75 @@
     </div>`,
   };
 
+  const fresh = () => ({ who: "", char: "", night: "", a: "", b: "", x: "", c: "", d: "", num: "", yes: null, dir: "", al: "", text: "" });
+  // what one player says they learned, filled in for that player and their claim
+  const InfoForm = {
+    mixins: [base],
+    components: { CharSelect, PlayerSelect },
+    props: { who: String },
+    emits: ["added"],
+    data() { return { e: this.start() }; },
+    computed: {
+      form() { return B.FORMS[this.e.char] || { f: ["text"] }; },
+      night() { return B.night(this.g.phase); },
+    },
+    methods: {
+      has(k) { return this.form.f.includes(k); },
+      start() {
+        const g = B.game();
+        return { ...fresh(), who: this.who, char: this.who === g.me ? B.myChar(g) : B.claimOf(g, this.who).id };
+      },
+      add() {
+        if (!this.e.char) return;
+        const e = { ...this.e, id: B.uid(this.g), night: this.e.night || this.night };
+        if (e.num !== "") e.num = Number(e.num);
+        this.g.info.push(e);
+        this.$emit("added");
+      },
+    },
+    template: `<div class="form">
+      <div class="row">
+        <CharSelect v-model="e.char" blank="as" />
+        <label class="small">N<input type="number" min="1" v-model.number="e.night" :placeholder="night" class="n"></label>
+      </div>
+      <div class="row">
+        <PlayerSelect v-if="has('a')" v-model="e.a" blank="player" />
+        <PlayerSelect v-if="has('b')" v-model="e.b" blank="player" />
+        <PlayerSelect v-if="has('x')" v-model="e.x" blank="player" />
+        <CharSelect v-if="has('c')" v-model="e.c" :only="form.team" :none="form.none ? 'none in play' : ''" blank="character" />
+        <CharSelect v-if="has('d')" v-model="e.d" :only="form.dteam" blank="evil character" />
+        <input v-if="has('num')" type="number" min="0" v-model="e.num" placeholder="number" class="n">
+        <select v-if="has('yes')" v-model="e.yes"><option :value="null">-</option><option :value="true">{{ (form.yes || ['yes'])[0] }}</option><option :value="false">{{ (form.yes || [, 'no'])[1] }}</option></select>
+        <select v-if="has('dir')" v-model="e.dir"><option value="">direction</option><option>clockwise</option><option>anticlockwise</option></select>
+        <select v-if="has('al')" v-model="e.al"><option value="">alignment</option><option>good</option><option>evil</option></select>
+        <input v-if="has('text')" v-model="e.text" placeholder="what they learned" class="grow" @keydown.enter="add">
+        <button @click="add">Add</button>
+      </div>
+    </div>`,
+  };
+
   const READS = ["", "good", "evil"];
   const Players = {
     mixins: [base],
-    components: { Nm, CharSelect },
+    components: { Nm, CharSelect, InfoForm },
+    data: () => ({ adding: "", more: {} }),
+    computed: {
+      myId() { return B.myChar(this.g); },
+      blk() { return B.blocks(this.g.votes); },
+      auto() { const c = this.g.myChar || B.claimOf(this.g, this.g.me).id; return c ? `${charName(this.g, c)} (from the game)` : "your character"; },
+    },
     methods: {
+      // a day death with them on the block (or a passed exile) was the vote; anything else just died
+      fate(n) {
+        const ph = this.g.deaths[n];
+        const x = ph > 0 && ph % 2 === 0 && this.g.votes.find((v) => v.phase === ph && v.on === n && (this.blk.has(v.id) || (v.exile && B.total(v) >= B.need(v))));
+        return (x ? (x.exile ? "exiled " : "executed ") : "died ") + B.short(ph);
+      },
+      infos(n) { return this.g.info.filter((e) => e.who === n).sort((x, y) => x.night - y.night); },
+      shown(n) { const l = this.infos(n); return this.more[n] ? l : l.slice(-1); },
+      text(e) { return infoText(this.g, e); },
+      team(id) { return this.g.chars[id]?.team || ""; },
+      dropInfo(e) { if (ask("Delete this info?")) this.g.info.splice(this.g.info.indexOf(e), 1); },
       cycle(n) { this.g.reads[n] = READS[(READS.indexOf(this.g.reads[n] || "") + 1) % READS.length]; },
       cur(n) { return B.claimOf(this.g, n); },
       pick(n, id) { B.addClaim(this.g, n, id, "set"); },
@@ -167,23 +231,36 @@
       short: B.short,
     },
     template: `<div>
+      <div v-if="g.me" class="me">
+        <CharSelect v-model="g.mine" :blank="auto" :class="'mine t-' + team(myId)" title="Pick your character to fix it, or leave it to follow the game" />
+        <div class="ability">{{ g.chars[myId]?.ability }}</div>
+      </div>
       <textarea v-model="g.eval" rows="3" placeholder="Notes for this game"></textarea>
       <p v-if="!g.players.length" class="small">Seats show up here once you're in a game.</p>
       <div v-for="(n, i) in g.players" :key="n" class="prow" :class="{ hl: ui.hl === n, dead: n in g.deaths }">
         <div class="row">
-          <span class="seat">{{ i + 1 }}</span>
+          <span class="seat" :class="{ gone: n in g.deaths }">{{ i + 1 }}</span>
           <Nm :n="n" />
           <span v-if="n === g.me" class="tag">you</span>
           <span v-if="g.travellers.includes(n)" class="tag">traveller</span>
-          <span v-if="n in g.deaths" class="small">&dagger;</span>
+          <span v-if="n in g.deaths" class="tag" :class="fate(n).startsWith('died') ? 'blk' : 'exec'">&dagger; {{ fate(n) }}</span>
           <span class="sp"></span>
           <button class="read" :class="g.reads[n]" @click="cycle(n)" :title="'Read: ' + (g.reads[n] || 'none')">{{ (g.reads[n] || '?')[0].toUpperCase() }}</button>
           <CharSelect :modelValue="cur(n).id" @update:modelValue="pick(n, $event)" blank="claim" :class="{ tok: cur(n).src === 'token' }" />
+          <button class="x" @click="adding = adding === n ? '' : n" title="Add what they learned">+</button>
         </div>
         <div v-if="showHist(n)" class="hist">
           <span v-for="(c, k) in hist(n)" :key="k" :class="{ was: k < hist(n).length - 1 }">{{ cname(c.id) }}
             <small>{{ short(c.phase) }}{{ src(c.src) }}</small><button class="x" @click="drop(n, k)" title="Remove">&times;</button></span>
         </div>
+        <div v-for="e in shown(n)" :key="e.id" class="info">
+          <span class="small">N{{ e.night }}</span>
+          <span :class="'t-' + team(e.char)">{{ cname(e.char) }}</span>
+          <span class="grow">{{ text(e) }}</span>
+          <button class="x" @click="dropInfo(e)" title="Delete">&times;</button>
+        </div>
+        <button v-if="infos(n).length > 1" class="x small" @click="more[n] = !more[n]">{{ more[n] ? 'latest only' : 'all ' + infos(n).length }}</button>
+        <InfoForm v-if="adding === n" :who="n" @added="adding = ''" />
         <input v-model="g.notes[n]" class="note" placeholder="note">
       </div>
     </div>`,
@@ -224,7 +301,7 @@
       <div v-for="x in groups" :key="x.label">
         <h3>{{ x.label }}</h3>
         <template v-for="o in x.list" :key="o.c.id">
-          <div class="claim" :class="['t-' + o.c.team, { none: !o.by.length, twice: o.by.length > 1 }]" @click="flip(o.c.id)">
+          <div class="claim" :class="['t-' + o.c.team, { none: !o.by.length, twice: o.by.length > 1 }]" :title="o.c.ability" @click="flip(o.c.id)">
             <span>{{ o.c.name }}</span><span class="sp"></span><Nm v-for="n in o.was" :key="'w' + n" :n="n" cls="nm who was" /><Nm v-for="n in o.by" :key="n" :n="n" :cls="'nm who' + (tok(n) ? ' tok' : '')" />
           </div>
           <div v-if="shown === o.c.id" class="ability">{{ o.c.ability }}</div>
@@ -233,89 +310,43 @@
     </div>`,
   };
 
-  const fresh = () => ({ who: "", char: "", night: "", a: "", b: "", x: "", c: "", d: "", num: "", yes: null, dir: "", al: "", text: "" });
-  const Info = {
+
+
+  const Night = {
     mixins: [base],
-    components: { CharSelect, PlayerSelect, Nm },
-    props: { mine: Boolean },
-    data() { return { e: this.start(), filter: "" }; },
+    components: { Nm },
+    data: () => ({ pick: "" }),
     computed: {
-      form() { return B.FORMS[this.e.char] || { f: ["text"] }; },
+      // during the day it's the coming night
+      n() {
+        const ph = this.g.phase, n = ph % 2 ? (ph + 1) / 2 : ph / 2 + 1;
+        return this.pick === "first" ? 1 : this.pick === "other" ? Math.max(2, n) : n;
+      },
       list() {
-        const keep = this.mine ? (e) => e.who === this.g.me : (e) => e.who !== this.g.me && (!this.filter || [e.who, e.a, e.b, e.x].includes(this.filter));
-        return this.g.info.filter(keep).sort((x, y) => x.night - y.night);
+        const k = this.n === 1 ? "first" : "other";
+        return Object.values(this.g.chars).filter((c) => c[k] > 0).sort((a, b) => a[k] - b[k]);
       },
-      night() { return B.night(this.g.phase); },
-      myId() { return B.claimOf(this.g, this.g.me).id; },
-    },
-    watch: {
-      "e.who"(n) {
-        const c = B.claimOf(this.g, n).id;
-        if (c) this.e.char = c;
-      },
-      myId() { if (this.mine) this.e = this.start(); },
-      "g.me"() { if (this.mine) this.e = this.start(); },
     },
     methods: {
-      has(k) { return this.form.f.includes(k); },
-      add() {
-        if (!this.e.who || !this.e.char) return;
-        const e = { ...this.e, id: B.uid(this.g), night: this.e.night || this.night };
-        if (e.num !== "") e.num = Number(e.num);
-        this.g.info.push(e);
-        this.e = { ...this.start(), night: this.e.night };
-      },
-      start() {
-        const g = B.game();
-        return this.mine ? { ...fresh(), who: g.me, char: B.claimOf(g, g.me).id } : fresh();
-      },
-      drop(e) { if (ask("Delete this info?")) this.g.info.splice(this.g.info.indexOf(e), 1); },
-      text(e) { return infoText(this.g, e); },
-      name(id) { return charName(this.g, id); },
-      team(id) { return this.g.chars[id]?.team || ""; },
+      who(id) { return this.g.players.filter((p) => (p === this.g.me ? B.myChar(this.g) : B.claimOf(this.g, p).id) === id); },
+      logged(p) { return this.g.info.some((e) => e.who === p && +e.night === this.n); },
+      gone(p) { return p in this.g.deaths && this.g.deaths[p] < 2 * this.n - 1; },
     },
     template: `<div>
-      <template v-if="mine">
-        <div class="me">
-          <b :class="'t-' + team(myId)">{{ name(myId) || 'Your character' }}</b>
-          <div class="ability">{{ g.chars[myId]?.ability }}</div>
-        </div>
-      </template>
-      <div class="form">
-        <div class="row">
-          <PlayerSelect v-if="!mine" v-model="e.who" blank="who" />
-          <CharSelect v-model="e.char" blank="as" />
-          <label class="small">N<input type="number" min="1" v-model.number="e.night" :placeholder="night" class="n"></label>
-        </div>
-        <div class="row">
-          <PlayerSelect v-if="has('a')" v-model="e.a" blank="player" />
-          <PlayerSelect v-if="has('b')" v-model="e.b" blank="player" />
-          <PlayerSelect v-if="has('x')" v-model="e.x" blank="player" />
-          <CharSelect v-if="has('c')" v-model="e.c" :only="form.team" :none="form.none ? 'none in play' : ''" blank="character" />
-          <CharSelect v-if="has('d')" v-model="e.d" :only="form.dteam" blank="evil character" />
-          <input v-if="has('num')" type="number" min="0" v-model="e.num" placeholder="number" class="n">
-          <select v-if="has('yes')" v-model="e.yes"><option :value="null">-</option><option :value="true">{{ (form.yes || ['yes'])[0] }}</option><option :value="false">{{ (form.yes || [, 'no'])[1] }}</option></select>
-          <select v-if="has('dir')" v-model="e.dir"><option value="">direction</option><option>clockwise</option><option>anticlockwise</option></select>
-          <select v-if="has('al')" v-model="e.al"><option value="">alignment</option><option>good</option><option>evil</option></select>
-          <input v-if="has('text')" v-model="e.text" placeholder="what they learned" class="grow" @keydown.enter="add">
-          <button @click="add">Add</button>
-        </div>
+      <div class="row bar">
+        <button :class="{ on: n === 1 }" @click="pick = 'first'">First night</button>
+        <button :class="{ on: n > 1 }" @click="pick = 'other'">Other nights</button>
+        <button v-if="pick" @click="pick = ''" title="Follow the game">Now</button>
+        <span class="sp"></span><span class="small">Night {{ n }}</span>
       </div>
-      <div v-if="!mine" class="row mt"><span class="small">Show</span><PlayerSelect v-model="filter" blank="everyone" /></div>
-      <div v-for="e in list" :key="e.id" class="info" :class="{ mine: e.who === g.me }">
-        <span class="small">N{{ e.night }}</span>
-        <Nm :n="e.who" />
-        <span :class="'t-' + team(e.char)">{{ name(e.char) }}</span>
-        <span class="grow">{{ text(e) }}</span>
-        <button class="x" @click="drop(e)">&times;</button>
+      <p v-if="!list.length" class="small">The script's night order loads once you're in a game.</p>
+      <div v-for="c in list" :key="c.id" class="claim" :class="['t-' + c.team, { none: !who(c.id).length }]" :title="c.ability">
+        <span>{{ c.name }}</span><span class="sp"></span>
+        <template v-for="p in who(c.id)" :key="p">
+          <Nm :n="p" :cls="'nm who' + (gone(p) ? ' was' : '')" /><span v-if="logged(p)" class="small" title="Info logged for this night">&#10003;</span>
+        </template>
       </div>
     </div>`,
-  };
-
-  const InfoPanel = {
-    mixins: [base],
-    components: { Info },
-    template: `<div><template v-if="g.me"><Info mine /><h3>Everyone else</h3></template><Info /></div>`,
   };
 
   const WORD = { fit: "fits", break: "breaks", odd: "explained", soft: "red herring?" };
@@ -339,7 +370,7 @@
       drop(w) { if (ask(`Delete ${w.name}?`)) this.g.worlds.splice(this.g.worlds.indexOf(w), 1); },
     },
     template: `<div>
-      <p class="small">Pick a demon and minions, then check them against the Info log.</p>
+      <p class="small">Pick a demon and minions, then check them against what players learned.</p>
       <div v-for="w in g.worlds" :key="w.id" class="card world" :class="{ clean: clean(w) }">
         <div class="row">
           <input v-model="w.name" class="bare grow">
@@ -395,11 +426,11 @@
   };
 
   B.PANELS = [
-    { id: "votes", label: "Votes", comp: Votes },
     { id: "players", label: "Players", comp: Players },
-    { id: "claims", label: "Claims", comp: Claims },
-    { id: "info", label: "Info", comp: InfoPanel },
+    { id: "votes", label: "Votes", comp: Votes },
     { id: "worlds", label: "Worlds", comp: Worlds },
+    { id: "claims", label: "Characters", comp: Claims },
+    { id: "night", label: "Night", comp: Night },
     { id: "games", label: "Games", comp: Games },
   ];
 })();

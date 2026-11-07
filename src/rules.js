@@ -235,7 +235,7 @@
     const ps = g.players, len = ps.length, i = ps.indexOf(w.demon);
     if (i < 0) return [];
     const evil = ev(w);
-    // ponytail: unclaimed counts as townsfolk, a good player lying about being an outsider fools it
+    // unclaimed counts as townsfolk, so a good player bluffing an outsider throws it off
     const folk = (n) => !evil.has(n) && !g.travellers.includes(n) && !["outsider", "traveller"].includes(g.chars[g.log?.[n]?.at(-1)?.id]?.team);
     const out = [];
     for (const step of [1, -1])
@@ -260,7 +260,7 @@
     const counts = B.variants(residents, Object.keys(g.chars)).map((v) => v.counts[2]);
     if (counts.length && !counts.includes(w.minions.length))
       notes.push(`${w.minions.length} minion${w.minions.length === 1 ? "" : "s"}, the count says ${[...new Set(counts)].join(" or ")}`);
-    const mine = g.chars[g.myChar]?.team;
+    const mine = g.chars[g.mine || g.myChar]?.team;
     if (g.me && mine && side(mine) === "good" && ev(w).has(g.me)) notes.push("puts you on the evil team");
     const tally = { fit: 0, break: 0, odd: 0, soft: 0 };
     rows.forEach((r) => tally[r.s]++);

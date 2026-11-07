@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
-# ./release.sh 0.6.4 "what changed" : commits whatever is changed along with the bump,
-# builds and publishes the xpi and points updates.json at it, all in one commit
+# ./release.sh <version> "what changed": commits whatever changed along with the bump, builds and
+# publishes the xpi and points updates.json at it. A commit under an hour old (or FOLD=1) gets folded
+# in, its message replaced and its release swapped for the new one.
 set -euo pipefail
 v=${1:?usage: ./release.sh <version> [message]}
 msg=${2:-$v}
 dir=$(dirname "$(realpath "$0")")
 repo=akulik1990/botc-tracker
 g() { git -C "$dir" "$@"; }
+
+g fetch -q origin
+[ "$(g rev-parse HEAD)" = "$(g rev-parse origin/master)" ] || { echo "master and origin/master differ, pull first" >&2; exit 1; }
+fold=${FOLD:-$(( $(date +%s) - $(g log -1 --format=%ct) < 3600 ))}
+prev=$( ((fold)) && g tag --points-at HEAD | grep '^v' || true)
 
 sed -i -E "s/\"version\": \"[^\"]+\"/\"version\": \"$v\"/" "$dir/manifest.json"
 g add -A
@@ -28,9 +34,19 @@ cat > "$dir/updates.json" <<JSON
 }
 JSON
 g add updates.json
-g commit -qm "$msg"
+if ((fold)); then
+  g commit -q --amend --date="$(date)" -m "$msg"
+  [ -n "$prev" ] && g tag -d "$prev" >/dev/null
+else
+  g commit -qm "$msg"
+fi
 g tag "v$v"
 g push -q origin "v$v"
-gh release create "v$v" "$dir/botc-tracker.xpi" --repo "$repo" --title "$v" --notes ""
-# master last: installed copies read updates.json from master, so the asset has to exist first
-g push -q origin master
+# the same package as a .zip, to unzip and load unpacked in Chrome or Opera
+cp "$dir/botc-tracker.xpi" "$dir/botc-tracker.zip"
+gh release create "v$v" "$dir/botc-tracker.xpi" "$dir/botc-tracker.zip" --repo "$repo" --title "$v" --notes ""
+# master after the asset exists: installed copies read updates.json from master
+g push -q --force-with-lease origin master
+# the replaced release goes last, so the old link works until the new one is live
+[ -n "$prev" ] && gh release delete "$prev" --repo "$repo" --cleanup-tag -y
+true

@@ -5,10 +5,10 @@
 
   // keyed by player names other people pick, so no prototype to collide with
   const dict = (o) => Object.assign(Object.create(null), o);
-  const MAPS = ["deaths", "chars", "tokens", "log", "reads", "notes"];
+  const MAPS = ["deaths", "chars", "tokens", "aligns", "log", "reads", "notes"];
   const blank = () => ({
     id: Date.now().toString(36), key: "", at: Date.now(), phase: 0, seq: 1,
-    players: [], travellers: [], deaths: dict(), me: "", myChar: "", chars: dict(), tokens: dict(),
+    players: [], travellers: [], deaths: dict(), me: "", myChar: "", mine: "", chars: dict(), tokens: dict(), aligns: dict(),
     votes: [], log: dict(), reads: dict(), notes: dict(), eval: "", info: [], worlds: [],
   });
 
@@ -34,6 +34,8 @@
   B.latest = () => db.games[db.games.length - 1];
   B.game = () => db.games.find((g) => g.id === B.ui.view) || B.latest();
   B.uid = (g) => String(g.seq++);
+  // the character you set yourself wins over the game's token and over what you claim
+  B.myChar = (g) => g.mine || g.myChar || B.claimOf(g, g.me).id;
   B.claimOf = (g, n) => g.log[n]?.at(-1) || { id: "", src: "" };
   B.addClaim = (g, n, id, src) => {
     const l = (g.log[n] ||= []);
@@ -85,21 +87,44 @@
     });
     set(g, "tokens", tokens);
 
+    // flipping a seat to good or evil in your grimoire, or putting a minion or demon on it, sets the read;
+    // only on change, so a read set by hand stays until the board says something new
+    ps.forEach((p, i) => {
+      const n = names[i];
+      if (i === mi) return;
+      const al = p.alignment || (["minion", "demon"].includes(p.role?.team) ? "e" : "");
+      if (al === (g.aligns[n] || "")) return;
+      g.aligns[n] = al;
+      if (al) g.reads[n] = al === "e" ? "evil" : "good";
+    });
+
     if (st.roles?.size) {
       const chars = dict();
-      for (const r of st.roles.values()) chars[r.id] = { id: r.id, name: r.name, team: r.team, ability: r.ability || "", setup: !!r.setup };
+      // the character sheet shows the translated text when there is one, so use the same
+      const t = (k, d) => B.gp?.$te?.(k) ? B.gp.$t(k) : d;
+      for (const r of st.roles.values())
+        chars[r.id] = { id: r.id, name: t(`roles.${r.id}.name`, r.name), team: r.team, ability: t(`roles.${r.id}.ability`, r.ability || ""), setup: !!r.setup, first: r.firstNight || 0, other: r.otherNight || 0 };
       set(g, "chars", chars);
     }
 
     const byId = (d) => typeof d === "number" ? names[d - 1] : names[ps.findIndex((p) => p.id === d)];
     const deaths = dict();
-    let ph = 0;
+    let ph = 0, since = 0;
+    const blocks = B.blocks(g.votes);
     for (const h of st.game.history || []) {
-      if (h.type === "phase") ph = h.data;
-      else if (h.type === "death" && byId(h.data)) deaths[byId(h.data)] = ph;
+      if (h.type === "phase") { ph = h.data; since = +h.time || 0; }
+      else if (h.type === "death" && byId(h.data)) {
+        // marked players die when the phase changes, so night kills land at dawn and executions at dusk.
+        // early in a day before any nomination means last night (an early Slayer shot gets this wrong),
+        // early in a night for whoever was on the block means that day's execution
+        const n = byId(h.data), t = +h.time || 0, early = ph > 1 && t - since < 5 * 60e3;
+        const dawn = early && ph % 2 === 0 && !g.votes.some((v) => v.phase === ph && v.at < t);
+        const dusk = early && ph % 2 === 1 && g.votes.some((v) => v.phase === ph - 1 && v.on === n && (blocks.has(v.id) || v.exile));
+        deaths[n] = dawn || dusk ? ph - 1 : ph;
+      }
       else if (h.type === "revive") delete deaths[byId(h.data)];
     }
-    // ponytail: no logged death (joined late, private entry) falls back to when we first saw them dead
+    // no death logged (joined late, private entry): use when we first saw them dead
     ps.forEach((p, i) => {
       if (p.status.includes("dead") && !(names[i] in deaths)) deaths[names[i]] = g.deaths[names[i]] ?? g.phase;
       if (!p.status.includes("dead")) delete deaths[names[i]];
@@ -135,10 +160,12 @@
 
   B.hook = () => {
     const t = setInterval(() => {
-      const store = document.querySelector("#main")?.__vue_app__?.config.globalProperties.$store;
+      const gp = document.querySelector("#main")?.__vue_app__?.config.globalProperties;
+      const store = gp?.$store;
       if (!store) return;
       clearInterval(t);
       B.store = store;
+      B.gp = gp;
       store.subscribe((m, st) => {
         if (/^(game|players|session|user)\/|^set(CustomRoles|Edition|RolesAvailable)$/.test(m.type)) sync(st);
         if (m.type.startsWith("vote/")) vote(st);

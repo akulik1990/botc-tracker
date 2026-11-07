@@ -3,9 +3,9 @@
     "botc-vote-tracker@akulik1990": {
       "updates": [
         {
-          "version": "0.6.3",
-          "update_link": "https://github.com/akulik1990/botc-tracker/releases/download/v0.6.3/botc-tracker.xpi",
-          "update_hash": "sha256:2333da6a618db5b3cfef210f0968f656a7a891054844d791261d64ac037de463"
+          "version": "0.8.5",
+          "update_link": "https://github.com/akulik1990/botc-tracker/releases/download/v0.8.5/botc-tracker.xpi",
+          "update_hash": "sha256:87140b66e55d198a318a7413cb35c18536356d05a4af13ac22ebb0aa5698a3d7"
         }
       ]
     }
