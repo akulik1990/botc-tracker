@@ -45,6 +45,18 @@ Pop out turns a panel into a window you can drag and resize, and you can have as
 
 Seats, deaths, your character and the script come from the same game state the town square is drawn from, so the add-on never sees anything you can't see on screen. Everything is saved in the browser's local storage for botc.app.
 
+## Keys
+
+| Key | Panel |
+|-----|-------|
+| A | Players |
+| W | Worlds |
+| C | Characters |
+| V | Votes |
+| N | Night |
+
+Press the key again to close the panel. They do nothing while you're typing in a box or in the chat. C, V and N are botc.app's own keys too (character sheet, vote history, night signals), so the add-on takes them over; you can give botc.app's versions new keys in its settings.
+
 ## Install
 
 You need Firefox 140 or newer.

@@ -18,12 +18,15 @@
   if (!db.games.length) db.games.push(blank());
   for (const g of db.games) {
     for (const k of MAPS) g[k] = dict(g[k]);
+    // older cards kept the date they were made; the start entry's id ends in the start time
+    const t = +g.key.split("-").pop();
+    if (t > g.at && t < Date.now()) g.at = t;
     if (Object.keys(g.log).length || !g.claims) continue;
     for (const [n, id] of Object.entries(g.tokens || {})) if (id) g.log[n] = [{ id, src: "token", phase: 0 }];
     for (const [n, id] of Object.entries(g.claims)) if (id) (g.log[n] ||= []).push({ id, src: "set", phase: 0 });
     delete g.claims;
   }
-  B.ui = reactive({ hl: "", view: "", ticks: [], compare: false, top: 10 });
+  B.ui = reactive({ hl: "", view: "", ticks: [], compare: false, top: 10, arm: null });
 
   let timer = 0;
   watch(db, () => {
@@ -63,7 +66,8 @@
   const t = (k, d) => B.gp?.$te?.(k) ? B.gp.$t(k) : d;
   const mk = (r) => ({ id: r.id, name: t(`roles.${r.id}.name`, r.name), team: r.team, ability: t(`roles.${r.id}.ability`, r.ability || ""), setup: !!r.setup, first: r.firstNight || 0, other: r.otherNight || 0 });
   // tokens can be off the script, botc.app still knows them
-  B.char = (g, id) => { const r = g.chars[id] || B.gp?.$store.state.rolesAvailable?.get(id); return r ? (g.chars[id] || mk(r)) : null; };
+  B.char = (g, id) => {
+    if (id?.startsWith("team:")) return { id, name: B.TEAM[id.slice(5)], team: id.slice(5), ability: "" }; const r = g.chars[id] || B.gp?.$store.state.rolesAvailable?.get(id); return r ? (g.chars[id] || mk(r)) : null; };
 
   function sync(st) {
     const ps = st.players.players;
@@ -71,7 +75,8 @@
     const key = h0?.type === "start" ? (st.session.sessionId || "") + "|" + h0.id : "";
     let g = B.latest();
     if (key && g.key && key !== g.key) { B.newGame(); g = B.latest(); }
-    if (key && !g.key) g.key = key;
+    // an empty card can sit around for days, so date it from when the game started
+    if (key && !g.key) { g.key = key; g.at = +h0.time || Date.now(); }
     g.phase = st.game.phase;
     if (!ps.length) return;
 
@@ -117,11 +122,11 @@
     for (const h of st.game.history || []) {
       if (h.type === "phase") { ph = h.data; since = +h.time || 0; }
       else if (h.type === "death" && byId(h.data)) {
-        // marked players die when the phase changes, so night kills land at dawn and executions at dusk.
-        // early in a day before any nomination means last night (an early Slayer shot gets this wrong),
-        // early in a night for whoever was on the block means that day's execution
-        const n = byId(h.data), t = +h.time || 0, early = ph > 1 && t - since < 5 * 60e3;
-        const dawn = early && ph % 2 === 0 && !g.votes.some((v) => v.phase === ph && v.at < t);
+        // night deaths get announced in the morning, sometimes a while in, so a day death before any
+        // nomination means last night (a Slayer shot before nominations gets this wrong).
+        // within a minute of nightfall for whoever was on the block means that day's execution
+        const n = byId(h.data), t = +h.time || 0, early = ph > 1 && t - since < 60e3;
+        const dawn = ph > 1 && ph % 2 === 0 && !g.votes.some((v) => v.phase === ph && v.at < t);
         const dusk = early && ph % 2 === 1 && g.votes.some((v) => v.phase === ph - 1 && v.on === n && (blocks.has(v.id) || v.exile));
         deaths[n] = dawn || dusk ? ph - 1 : ph;
       }
@@ -129,7 +134,7 @@
     }
     // no death logged (joined late, private entry): use when we first saw them dead
     ps.forEach((p, i) => {
-      if (p.status.includes("dead") && !(names[i] in deaths)) deaths[names[i]] = g.deaths[names[i]] ?? g.phase;
+      if (p.status.includes("dead") && !(names[i] in deaths)) deaths[names[i]] = g.deaths[names[i]] ?? (g.phase % 2 === 0 && !g.votes.some((v) => v.phase === g.phase) ? g.phase - 1 : g.phase);
       if (!p.status.includes("dead")) delete deaths[names[i]];
     });
     set(g, "deaths", deaths);

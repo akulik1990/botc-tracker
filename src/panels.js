@@ -2,7 +2,13 @@
   const B = window.BVT;
   const TEAMS = [["townsfolk", "Townsfolk"], ["outsider", "Outsiders"], ["minion", "Minions"], ["demon", "Demons"], ["traveller", "Travellers"]];
   const base = { computed: { g: () => B.game(), ui: () => B.ui } };
-  const ask = (msg) => confirm(msg);
+  // confirm() freezes the page and cuts the call audio, so deleting takes a second click instead
+  const ask = (key) => {
+    if (B.ui.arm === key) { B.ui.arm = null; return true; }
+    B.ui.arm = key;
+    setTimeout(() => { if (B.ui.arm === key) B.ui.arm = null; }, 3000);
+    return false;
+  };
 
   const Nm = {
     props: { n: String, cls: { type: String, default: "nm" } },
@@ -13,13 +19,13 @@
 
   const CharSelect = {
     mixins: [base],
-    props: { modelValue: String, only: String, none: String, blank: { type: String, default: "-" } },
+    props: { modelValue: String, only: String, none: String, teams: Boolean, blank: { type: String, default: "-" } },
     emits: ["update:modelValue"],
     computed: {
       groups() {
         const cs = Object.values(this.g.chars);
         return TEAMS.filter(([t]) => !this.only || this.only.split(",").includes(t))
-          .map(([t, label]) => ({ label, list: cs.filter((c) => c.team === t) }))
+          .map(([t, label]) => ({ t, label, one: B.TEAM[t], list: cs.filter((c) => c.team === t) }))
           .filter((x) => x.list.length);
       },
     },
@@ -27,6 +33,7 @@
       <option value="">{{ blank }}</option>
       <option v-if="none" value="none">{{ none }}</option>
       <optgroup v-for="x in groups" :key="x.label" :label="x.label">
+        <option v-if="teams" :value="'team:' + x.t" class="any">Any {{ x.one }}</option>
         <option v-for="c in x.list" :key="c.id" :value="c.id" :title="c.ability">{{ c.name }}</option>
       </optgroup>
     </select>`,
@@ -102,7 +109,7 @@
       voters: (x) => x.seats.slice(x.first).concat(x.seats.slice(0, x.first)).filter((p) => p.vote),
       lit(x) { return x.seats.some((p) => p.name === this.ui.hl && p.vote); },
       tick(id) { const t = this.ui.ticks; t.includes(id) ? t.splice(t.indexOf(id), 1) : t.push(id); },
-      del(x) { if (ask("Delete this vote?")) this.g.votes.splice(this.g.votes.indexOf(x), 1); },
+      del(x) { if (ask(x)) this.g.votes.splice(this.g.votes.indexOf(x), 1); },
       short: B.short,
       row(n) {
         const ms = this.cols.map((x) => B.mark(x, n));
@@ -139,7 +146,7 @@
             <span v-if="x.exile" class="tag">exile</span>
             <span v-if="blk.has(x.id)" class="tag blk">on the block</span>
             <span class="cnt" :class="{ ok: !x.hidden && total(x) >= need(x) }">{{ x.hidden ? '?' : total(x) }}/{{ need(x) }}</span>
-            <button class="x" @click="del(x)" title="Delete">&times;</button>
+            <button class="x" :class="{ arm: ui.arm === x }" @click="del(x)" :title="ui.arm === x ? 'Click again to delete' : 'Delete'">&times;</button>
           </div>
           <div class="chips">
             <span v-if="x.hidden" class="small">secret vote</span>
@@ -167,7 +174,7 @@
       has(k) { return this.form.f.includes(k); },
       start() {
         const g = B.game();
-        return { ...fresh(), who: this.who, char: this.who === g.me ? B.myChar(g) : B.claimOf(g, this.who).id, ...this.seed };
+        return { ...fresh(), who: this.who, char: this.who === g.me ? B.myChar(g) : B.claimOf(g, this.who).id.replace(/^team:.*/, ""), ...this.seed };
       },
       add() {
         if (!this.e.char) return;
@@ -220,7 +227,7 @@
       text(e) { return infoText(this.g, e); },
       team(id) { return B.char(this.g, id)?.team || ""; },
       about(id) { return B.char(this.g, id)?.ability || ""; },
-      dropInfo(e) { if (ask("Delete this info?")) this.g.info.splice(this.g.info.indexOf(e), 1); },
+      dropInfo(e) { if (ask(e)) this.g.info.splice(this.g.info.indexOf(e), 1); },
       cycle(n) { this.g.reads[n] = READS[(READS.indexOf(this.g.reads[n] || "") + 1) % READS.length]; },
       cur(n) { return B.claimOf(this.g, n); },
       pick(n, id) { B.addClaim(this.g, n, id, "set"); },
@@ -243,12 +250,11 @@
         <div class="row">
           <span class="seat" :class="{ gone: n in g.deaths }">{{ i + 1 }}</span>
           <Nm :n="n" />
-          <span v-if="n === g.me" class="tag">you</span>
           <span v-if="g.travellers.includes(n)" class="tag">traveller</span>
           <span v-if="n in g.deaths" class="tag" :class="fate(n).startsWith('died') ? 'blk' : 'exec'">&dagger; {{ fate(n) }}</span>
           <span class="sp"></span>
           <button class="read" :class="g.reads[n]" @click="cycle(n)" :title="'Read: ' + (g.reads[n] || 'none')">{{ (g.reads[n] || '?')[0].toUpperCase() }}</button>
-          <CharSelect :modelValue="cur(n).id" @update:modelValue="pick(n, $event)" blank="claim" :class="['t-' + team(cur(n).id), { tok: cur(n).src === 'token' }]" :title="about(cur(n).id)" />
+          <CharSelect :modelValue="cur(n).id" @update:modelValue="pick(n, $event)" teams blank="claim" :class="['t-' + team(cur(n).id), { tok: cur(n).src === 'token' }]" :title="about(cur(n).id)" />
           <button class="x" @click="seed = {}; adding = adding === n ? '' : n" title="Add what they learned">+</button>
         </div>
         <div v-if="showHist(n)" class="hist">
@@ -260,7 +266,7 @@
           <span :class="'t-' + team(e.char)" :title="about(e.char)">{{ cname(e.char) }}</span>
           <span class="grow">{{ text(e) }}</span>
           <button class="x" @click="again(n, e)" title="Another one, next night">+</button>
-          <button class="x" @click="dropInfo(e)" title="Delete">&times;</button>
+          <button class="x" :class="{ arm: ui.arm === e }" @click="dropInfo(e)" :title="ui.arm === e ? 'Click again to delete' : 'Delete'">&times;</button>
         </div>
         <button v-if="infos(n).length > 1" class="x small" @click="more[n] = !more[n]">{{ more[n] ? 'latest only' : 'all ' + infos(n).length }}</button>
         <InfoForm v-if="adding === n" :key="seed.night" :who="n" :seed="seed" @added="adding = ''" />
@@ -283,12 +289,13 @@
         const cs = Object.values(this.g.chars);
         return TEAMS.map(([t, label]) => ({
           label,
-          list: cs.filter((c) => c.team === t).map((c) => ({
+          list: [B.char(this.g, "team:" + t), ...cs.filter((c) => c.team === t)].map((c) => ({
             c,
             by: this.g.players.filter((n) => this.claimOf(n) === c.id),
             was: this.g.players.filter((n) => this.claimOf(n) !== c.id && (this.g.log[n] || []).some((x) => x.id === c.id)),
           })),
-        })).filter((x) => x.list.length);
+        })).map((x) => ({ ...x, list: x.list.filter((o, i) => i || o.by.length || o.was.length) }))
+          .filter((x) => x.list.length);
       },
     },
     methods: {
@@ -370,7 +377,7 @@
           : { id: B.uid(this.g), name: "World " + (this.g.worlds.length + 1), demon: "", kind: "", minions: [], odd: [], note: "" };
         this.g.worlds.push(w);
       },
-      drop(w) { if (ask(`Delete ${w.name}?`)) this.g.worlds.splice(this.g.worlds.indexOf(w), 1); },
+      drop(w) { if (ask(w)) this.g.worlds.splice(this.g.worlds.indexOf(w), 1); },
     },
     template: `<div>
       <p class="small">Pick a demon and minions, then check them against what players learned.</p>
@@ -378,7 +385,7 @@
         <div class="row">
           <input v-model="w.name" class="bare grow">
           <button @click="add(w)" title="Copy this world">Copy</button>
-          <button class="x" @click="drop(w)">&times;</button>
+          <button class="x" :class="{ arm: ui.arm === w }" @click="drop(w)" :title="ui.arm === w ? 'Click again to delete' : 'Delete'">&times;</button>
         </div>
         <div class="row"><span class="lab">Demon</span><PlayerSelect v-model="w.demon" /><CharSelect v-model="w.kind" only="demon" blank="as" title="Vortox and No Dashii change what counts as wrong info" /></div>
         <div class="row"><span class="lab">Minions</span><PlayerChips v-model="w.minions" cls="evil" /></div>
@@ -407,9 +414,9 @@
     methods: {
       label(g) { return new Date(g.at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); },
       view(g) { B.ui.view = g === this.latest ? "" : g.id; B.ui.ticks = []; },
-      fresh() { if (ask("Start a new game? The current one stays in this list.")) B.newGame(); },
+      fresh() { if (ask("new")) B.newGame(); },
       drop(g) {
-        if (!ask("Delete this game?")) return;
+        if (!ask(g)) return;
         B.db.games.splice(B.db.games.indexOf(g), 1);
         if (!B.db.games.length) B.newGame();
         if (B.ui.view === g.id) B.ui.view = "";
@@ -422,9 +429,9 @@
         <span class="small">{{ x.players.length }} players, {{ x.votes.length }} votes</span>
         <span class="sp"></span>
         <span v-if="x === latest" class="tag">current</span>
-        <button class="x" @click.stop="drop(x)">&times;</button>
+        <button class="x" :class="{ arm: ui.arm === x }" @click.stop="drop(x)" :title="ui.arm === x ? 'Click again to delete' : 'Delete'">&times;</button>
       </div>
-      <button @click="fresh">New game</button>
+      <button :class="{ arm: ui.arm === 'new' }" @click="fresh">{{ ui.arm === 'new' ? 'Sure? The current one stays here' : 'New game' }}</button>
     </div>`,
   };
 

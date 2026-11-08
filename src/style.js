@@ -104,10 +104,12 @@ tr.hl { outline: none; }
 .nm.tok { font-style: italic; opacity: .65; }
 select.tok { font-style: italic; }
 select option, select optgroup { color: #e6e8ec; font-style: normal; }
+option.any { font-style: italic; }
 .nm.was { opacity: .5; font-weight: 400; }
 .hist { display: flex; flex-wrap: wrap; gap: 2px 6px; font-size: 12px; margin-top: 3px; padding-left: 24px; }
 .hist span + span::before { content: "\\2192  "; color: #8b93a3; }
 .hist .was { opacity: .55; }
+button.arm, .x.arm { background: #e0483f; border-color: #e0483f; color: #fff; }
 .hist small { color: #8b93a3; font-size: 11px; }
 .hist .x { border: 0; background: none; padding: 0 2px; color: #8b93a3; }
 .me { padding-bottom: 6px; }

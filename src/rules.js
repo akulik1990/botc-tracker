@@ -7,6 +7,10 @@
   };
   const MODS = { baron: [2], godfather: [-1, 1], fanggu: [1], vigormortis: [-1], balloonist: [1] };
 
+  // a claim can be just a team ("I'm an outsider"), stored as team:outsider
+  B.TEAM = { townsfolk: "Townsfolk", outsider: "Outsider", minion: "Minion", demon: "Demon", traveller: "Traveller" };
+  B.teamOf = (g, id) => id?.startsWith("team:") ? id.slice(5) : g.chars[id]?.team;
+
   B.variants = (n, ids) => {
     if (n < 5) return [];
     const base = TABLE[Math.min(n, 15)];
@@ -236,7 +240,7 @@
     if (i < 0) return [];
     const evil = ev(w);
     // unclaimed counts as townsfolk, so a good player bluffing an outsider throws it off
-    const folk = (n) => !evil.has(n) && !g.travellers.includes(n) && !["outsider", "traveller"].includes(g.chars[g.log?.[n]?.at(-1)?.id]?.team);
+    const folk = (n) => !evil.has(n) && !g.travellers.includes(n) && !["outsider", "traveller"].includes(B.teamOf(g, g.log?.[n]?.at(-1)?.id));
     const out = [];
     for (const step of [1, -1])
       for (let k = 1; k < len; k++) { const n = ps[(i + step * k + len * k) % len]; if (folk(n)) { out.push(n); break; } }

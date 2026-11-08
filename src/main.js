@@ -4,16 +4,19 @@
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   const ALPHA = [1, 0.8, 0.6, 0.4];
-  const st = (id) => (db.panels[id] ||= { float: false, open: false, x: 0, y: 0, w: 360, h: 480 });
+  const st = (id) => (db.panels[id] ||= { float: false, open: false, x: 0, y: 0, w: 420, h: 480 });
   // the tab strip rides on the docked panel's edge and the panel slides out from under it
   if (!db.dock) {
     const d = db.docked && typeof db.docked === "object" ? db.docked : { right: db.docked || "" };
     const id = d.right || d.left || "";
     const side = d.right || !d.left ? "right" : "left";
-    db.dock = { side, id: id || "votes", open: !!id, w: db.dockW?.[side] || 380, y: -1 };
+    db.dock = { side, id: id || "votes", open: !!id, w: db.dockW?.[side] || 440, y: -1 };
     delete db.docked; delete db.dockW; delete db.strip; delete db.open;
   }
   if (["mine", "info"].includes(db.dock.id)) db.dock.id = "players";
+  // the old default widths, never dragged, get the new ones
+  if (db.dock.w === 380) db.dock.w = 440;
+  for (const p of Object.values(db.panels || {})) if (p.w === 360) p.w = 420;
   const dock = db.dock;
   // innerWidth counts a classic scrollbar, and computeds can't see it change
   const vw = Vue.ref(document.documentElement.clientWidth);
@@ -172,7 +175,18 @@
   style.textContent = B.CSS;
   const mount = document.createElement("div");
   root.append(style, mount);
-  Vue.createApp(App).mount(mount);
+  const vm = Vue.createApp(App).mount(mount);
+  // single keys open a panel, but not while typing (botc.app's chat included).
+  // botc.app uses C, V and N too (character sheet, vote history, night signals); these win, so it doesn't get them
+  const KEYS = { a: "players", w: "worlds", c: "claims", v: "votes", n: "night" };
+  addEventListener("keydown", (e) => {
+    const t = e.composedPath()[0], id = KEYS[e.key?.toLowerCase()];
+    if (!id || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName)) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    if (!e.repeat) vm.tab(id);
+  }, true);
   setInterval(() => measure(root.querySelector(".strip").getBoundingClientRect()), 250);
   B.hook();
 })();
